@@ -55,24 +55,44 @@ public class SharedDataSessionImpl extends AbstractSession implements ClusterSer
     buff.appendLong(timeout());
     buff.appendLong(lastAccessed());
     buff.appendInt(version());
+    buff.appendInt(isDestroyed() ? 1 : 0);
+    buff.appendInt(isRegenerated() ? 1 : 0);
+    bytes = oldId() != null ? oldId().getBytes(UTF8) : new byte[0];
+    buff.appendInt(bytes.length).appendBytes(bytes);
     writeDataToBuffer(buff);
   }
 
   @Override
   public int readFromBuffer(int pos, Buffer buffer) {
+    // id length and value
     int len = buffer.getInt(pos);
     pos += 4;
     byte[] bytes = buffer.getBytes(pos, pos + len);
     pos += len;
     setId(new String(bytes, UTF8));
+    // timeout
     setTimeout(buffer.getLong(pos));
     pos += 8;
+    // last accessed
     setLastAccessed(buffer.getLong(pos));
     pos += 8;
+    // version
     setVersion(buffer.getInt(pos));
     pos += 4;
+    // destroyed
+    setDestroyed(buffer.getInt(pos) == 1 ? true : false);
+    pos += 4;
+    // renewed
+    setRenewed(buffer.getInt(pos) == 1 ? true : false);
+    pos += 4;
+    // oldId length and value
+    len = buffer.getInt(pos);
+    pos += 4;
+    bytes = buffer.getBytes(pos, pos + len);
+    pos += len;
+    setOldId(len != 0 ? new String(bytes, UTF8) : null);
+    // data
     pos = readDataFromBuffer(pos, buffer);
     return pos;
   }
 }
-

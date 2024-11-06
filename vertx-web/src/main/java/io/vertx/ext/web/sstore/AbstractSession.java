@@ -107,6 +107,22 @@ public abstract class AbstractSession implements Session, SessionInternal {
   private String oldId;
   private int crc;
 
+  protected void setDestroyed(boolean destroyed) {
+    this.destroyed = destroyed;
+  }
+
+  protected void setRenewed(boolean renewed) {
+    this.renewed = renewed;
+  }
+
+  protected void setOldId(String oldId) {
+    this.oldId = oldId;
+  }
+
+  protected void setCRC(int crc) {
+    this.crc = crc;
+  }
+
   /**
    * This constructor is <b>mandatory</b> (even though not referenced anywhere) is required for
    * serialization purposes. Do not remove. It is required as part of the contract of the ClusterSerializable
@@ -470,4 +486,3 @@ public abstract class AbstractSession implements Session, SessionInternal {
     readDataFromBuffer(0, buffer);
   }
 }
-

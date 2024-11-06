@@ -165,20 +165,56 @@ public class ClusteredSessionHandlerTest extends SessionHandlerTestBase {
 
   @Test
   public void testSessionSerializationNullPrincipal() {
+    // given
     long timeout = 123;
     SharedDataSessionImpl session = (SharedDataSessionImpl) store.createSession(timeout);
     session.setAccessed();
     long lastAccessed = session.lastAccessed();
     stuffSession(session);
     checkSession(session);
+
+    // when
     Buffer buffer = Buffer.buffer();
     session.writeToBuffer(buffer);
     SharedDataSessionImpl session2 = (SharedDataSessionImpl) store.createSession(0);
     session2.readFromBuffer(0, buffer);
+
+    // then
     checkSession(session2);
     assertEquals(timeout, session2.timeout());
     assertEquals(lastAccessed, session2.lastAccessed());
+    assertEquals(session.isRegenerated(), session2.isRegenerated());
+    assertEquals(session.isDestroyed(), session2.isDestroyed());
     assertEquals(session.id(), session2.id());
+    assertEquals(session.oldId(), session2.oldId());
+  }
+
+  @Test
+  public void testDestroyedSessionSerialization() {
+    // given
+    long timeout = 123;
+    SharedDataSessionImpl session = (SharedDataSessionImpl) store.createSession(timeout);
+    session.setAccessed();
+    long lastAccessed = session.lastAccessed();
+    stuffSession(session);
+    checkSession(session);
+    session.regenerateId();
+    session.destroy();
+
+    // when
+    Buffer buffer = Buffer.buffer();
+    session.writeToBuffer(buffer);
+    SharedDataSessionImpl session2 = (SharedDataSessionImpl) store.createSession(0);
+    session2.readFromBuffer(0, buffer);
+
+    // then
+    assertEquals(timeout, session2.timeout());
+    assertEquals(lastAccessed, session2.lastAccessed());
+    assertEquals(session.isRegenerated(), session2.isRegenerated());
+    assertEquals(session.isDestroyed(), session2.isDestroyed());
+    assertEquals(session.id(), session2.id());
+    assertEquals(session.oldId(), session2.oldId());
+    assertTrue(session.data().isEmpty());
   }
 
   private void stuffSession(Session session) {
