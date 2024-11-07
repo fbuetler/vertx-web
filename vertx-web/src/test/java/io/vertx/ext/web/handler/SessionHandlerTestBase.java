@@ -224,9 +224,10 @@ public abstract class SessionHandlerTestBase extends WebTestBase {
 
 	@Test
 	public void testDestroySession() throws Exception {
+        // given
 		router.route().handler(SessionHandler.create(store));
-		AtomicReference<String> rid = new AtomicReference<>();
-		AtomicInteger requestCount = new AtomicInteger();
+        final AtomicReference<String> sid = new AtomicReference<>();
+        final AtomicInteger requestCount = new AtomicInteger();
 		router.route().handler(rc -> {
 			Session sess = rc.session();
 			assertNotNull(sess);
@@ -234,34 +235,47 @@ public abstract class SessionHandlerTestBase extends WebTestBase {
 			assertNotNull(sess.id());
 			switch (requestCount.get()) {
 			case 0:
-				rid.set(sess.id());
+                    sid.set(sess.id());
 				sess.put("foo", "bar");
-				sess.destroy();
 				break;
 			case 1:
-				assertFalse(rid.get().equals(sess.id())); // New session
-				assertNull(sess.get("foo"));
-				rid.set(sess.id());
+                    assertEquals(sid.get(), sess.id());
+                    // Destroy session in a follow-up request, so that it has been flushed to
+                    // the session store
 				sess.destroy();
 				break;
+                case 2:
+                    assertFalse(sid.get().equals(sess.id())); // New session
+                    assertNull(sess.get("foo"));
+                    sid.set(sess.id());
+                    sess.destroy(); // Destroy session in the same request as it is created
+                    break;
 			}
 			requestCount.incrementAndGet();
 			rc.response().end();
 		});
+
+        // when
+        final AtomicReference<String> sessionCookie = new AtomicReference<>();
 		testRequest(HttpMethod.GET, "/", null, resp -> {
+            assertTrue(resp.headers().getAll("set-cookie").size() == 1); // expect new session cookie only
 			String setCookie = resp.headers().get("set-cookie");
-			assertNull(setCookie);
-			// the cookie got destroyed even before the end of the request, so no side
-			// effects are expected
+            assertNotNull(setCookie);
+            sessionCookie.set(setCookie.split(";")[0]);
+        }, 200, "OK", null);
+        testRequest(HttpMethod.GET, "/", req -> req.putHeader("cookie", sessionCookie.get()), resp -> {
+            assertTrue(resp.headers().getAll("set-cookie").size() == 1); // expect expired session cookie only
 		}, 200, "OK", null);
-		testRequest(HttpMethod.GET, "/", null, null, 200, "OK", null);
+        testRequest(HttpMethod.GET, "/", req -> req.putHeader("cookie", sessionCookie.get()), null, 200, "OK", null);
+
+        // then
 		Thread.sleep(500); // Needed because session.destroy is async
-		CountDownLatch latch1 = new CountDownLatch(1);
-		store.get(rid.get(), onSuccess(res -> {
+        CountDownLatch latch = new CountDownLatch(1);
+        store.get(sid.get(), onSuccess(res -> {
 			assertNull(res);
-			latch1.countDown();
+            latch.countDown();
 		}));
-		awaitLatch(latch1);
+        awaitLatch(latch);
 	}
 
 	@Test
